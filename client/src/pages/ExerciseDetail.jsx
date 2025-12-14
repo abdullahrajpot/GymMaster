@@ -104,14 +104,25 @@ const ExerciseDetail = () => {
         let exerciseEndpoint;
         
         if (IS_NEW_API) {
-          // For the gym-fit API - search by exercise name/id
-          exerciseEndpoint = `${EXERCISE_API_BASE_URL}/v1/exercises/search?limit=1&offset=0&name=${encodeUrlParam(id)}`;
+          // For the gym-fit API - use getExerciseById endpoint
+          // Try different possible endpoint structures
+          exerciseEndpoint = `${EXERCISE_API_BASE_URL}/v1/exercises/${encodeUrlParam(id)}`;
         } else {
           // For the original exercisedb API
           exerciseEndpoint = `${EXERCISE_API_BASE_URL}/exercises/exercise/${encodeUrlParam(id)}`;
         }
         
-        const particularExerciseData = await fetchData(exerciseEndpoint, exerciseOptions);
+        let particularExerciseData = await fetchData(exerciseEndpoint, exerciseOptions);
+        
+        // For Gym-Fit API, if the direct ID endpoint fails, try alternative endpoints
+        if (IS_NEW_API && (!particularExerciseData || (typeof particularExerciseData === 'object' && !particularExerciseData.id && !particularExerciseData.name))) {
+          // Try getExerciseById endpoint
+          const altEndpoint = `${EXERCISE_API_BASE_URL}/v1/exercises/getExerciseById?id=${encodeUrlParam(id)}`;
+          const altData = await fetchData(altEndpoint, exerciseOptions);
+          if (altData && (altData.id || altData.name || altData.title)) {
+            particularExerciseData = altData;
+          }
+        }
         
         // Check if we got valid exercise data
         let exerciseData = particularExerciseData;
@@ -203,15 +214,50 @@ const ExerciseDetail = () => {
       <div className="px-7 sm:px-14">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-md" data-aos="fade-up"> {/* Add AOS here */}
-            <img src={exercises.gifUrl} className='w-full' alt="gym" loading='lazy' />
+            {(() => {
+              let imageUrl = exercises.gifUrl || 
+                            exercises.gif_url || 
+                            exercises.image || 
+                            exercises.imageUrl ||
+                            exercises.image_url ||
+                            exercises.images?.gif ||
+                            exercises.images?.url ||
+                            exercises.images?.image ||
+                            (Array.isArray(exercises.images) && exercises.images[0]) ||
+                            exercises.media?.[0]?.url ||
+                            exercises.thumbnail ||
+                            exercises.thumbnailUrl ||
+                            exercises.photo ||
+                            exercises.photoUrl ||
+                            '';
+              
+              // Filter out placeholder values
+              if (imageUrl && (imageUrl === 'image_coming_soon' || 
+                               imageUrl === 'coming_soon' || 
+                               imageUrl === 'placeholder' ||
+                               !imageUrl.startsWith('http'))) {
+                imageUrl = '';
+              }
+              
+              return imageUrl ? (
+                <img src={imageUrl} className='w-full' alt="gym" loading='lazy' onError={(e) => {
+                  console.warn('Image failed to load:', imageUrl);
+                  e.target.style.display = 'none';
+                }} />
+              ) : (
+                <div className='w-full h-96 bg-gray-200 flex items-center justify-center text-gray-500'>
+                  <span>No Image Available</span>
+                </div>
+              );
+            })()}
           </div>
           <div className="rounded flex flex-col gap-6 justify-center" data-aos="fade-up"> {/* Add AOS here */}
-            <h2 className='font-medium text-2xl md:text-4xl capitalize'>{exercises.name}</h2>
-            <p className='capitalize text-lg text-gray-500 font-medium'>Exercises keep you strong. {exercises.name} is one of the best exercises to target your {exercises.target}. It will help you improve your mood and energy.</p>
+            <h2 className='font-medium text-2xl md:text-4xl capitalize'>{exercises.name || exercises.title || exercises.exerciseName || 'Exercise'}</h2>
+            <p className='capitalize text-lg text-gray-500 font-medium'>Exercises keep you strong. {exercises.name || exercises.title || 'This exercise'} is one of the best exercises to target your {exercises.target || exercises.targetMuscle || exercises.primaryMuscles?.[0] || 'muscles'}. It will help you improve your mood and energy.</p>
             <div className='flex flex-col md:flex-row gap-10'>
-              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.equipment}</span></div>
-              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.target}</span></div>
-              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.bodyPart}</span></div>
+              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.equipment || 'Equipment'}</span></div>
+              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.target || exercises.targetMuscle || exercises.primaryMuscles?.[0] || 'Target'}</span></div>
+              <div><GiGymBag className='rounded-full bg-orange-500 text-7xl p-2 md:p-3 lg:p-4 hover:bg-orange-600 text-white' /> <span className='capitalize text-xl'>{exercises.bodyPart || exercises.bodypart || exercises.primaryMuscles?.[0] || 'Body Part'}</span></div>
             </div>
           </div>
         </div>

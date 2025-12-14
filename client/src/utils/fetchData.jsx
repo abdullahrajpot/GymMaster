@@ -2,8 +2,8 @@
 const EXERCISE_API_BASE_URL = import.meta.env.VITE_EXERCISE_API_BASE_URL || "https://exercisedb.p.rapidapi.com";
 const EXERCISE_API_HOST = import.meta.env.VITE_EXERCISE_API_HOST || "exercisedb.p.rapidapi.com";
 
-// Check if using new API
-const IS_NEW_API = EXERCISE_API_BASE_URL.includes('gym-fit.p.rapidapi.com');
+// Check if using Gym-Fit API
+const IS_NEW_API = EXERCISE_API_BASE_URL.includes('gym-fit.p.rapidapi.com') || EXERCISE_API_HOST.includes('gym-fit.p.rapidapi.com');
 
 // Helper function to encode URL parameters
 const encodeUrlParam = (param) => {
@@ -75,7 +75,16 @@ const fetchData = async (url, options, retryCount = 0) => {
     
     // Check if response is OK (status 200-299)
     if (!response.ok) {
-      console.error(`API Error: ${response.status} ${response.statusText} for ${url}`);
+      // Try to get error message from response
+      let errorMessage = `${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) errorMessage = errorData.message;
+        console.error(`API Error: ${response.status} - ${errorMessage} for ${url}`);
+        console.error('Error details:', errorData);
+      } catch (e) {
+        console.error(`API Error: ${response.status} ${response.statusText} for ${url}`);
+      }
       
       // Log additional details for debugging
       if (response.status === 404) {
@@ -87,23 +96,57 @@ const fetchData = async (url, options, retryCount = 0) => {
     
     const data = await response.json();
     
+    // Debug: Log the response structure
+    if (IS_NEW_API) {
+      console.log('Gym-Fit API Response:', { url, dataType: typeof data, isArray: Array.isArray(data), keys: data && typeof data === 'object' ? Object.keys(data) : 'N/A' });
+    }
+    
+    // Handle Gym-Fit API response format (might be wrapped in data property)
+    let result = data;
+    if (IS_NEW_API && data && typeof data === 'object') {
+      // Gym-Fit API might return { data: [...], total: number } or { exercises: [...] }
+      if (Array.isArray(data.data)) {
+        result = data.data;
+        console.log('Found data in data.data property, length:', result.length);
+      } else if (Array.isArray(data.exercises)) {
+        result = data.exercises;
+        console.log('Found data in data.exercises property, length:', result.length);
+      } else if (Array.isArray(data.results)) {
+        result = data.results;
+        console.log('Found data in data.results property, length:', result.length);
+      } else if (Array.isArray(data.items)) {
+        result = data.items;
+        console.log('Found data in data.items property, length:', result.length);
+      } else if (Array.isArray(data)) {
+        result = data;
+        console.log('Data is already an array, length:', result.length);
+      } else {
+        console.warn('Gym-Fit API response is not in expected format:', data);
+      }
+    }
+    
     // Cache successful responses
-    if (data && (Array.isArray(data) || (typeof data === 'object' && !data.error))) {
-      apiCache.set(cacheKey, { data, timestamp: Date.now() });
+    if (result && (Array.isArray(result) || (typeof result === 'object' && !result.error))) {
+      apiCache.set(cacheKey, { data: result, timestamp: Date.now() });
     }
     
     // Ensure we return an array if the endpoint should return an array
-    if (Array.isArray(data)) {
-      return data;
+    if (Array.isArray(result)) {
+      return result;
     }
     
     // If it's an object but might be an error, check for common error properties
-    if (data && typeof data === 'object' && (data.message || data.error)) {
-      console.error('API returned error:', data);
+    if (result && typeof result === 'object' && (result.message || result.error)) {
+      console.error('API returned error:', result);
       return [];
     }
     
-    return data;
+    // If it's a single object (like exercise detail), return it
+    if (result && typeof result === 'object' && !Array.isArray(result)) {
+      return result;
+    }
+    
+    return result || [];
   } catch (error) {
     console.error('Fetch error:', error);
     return [];

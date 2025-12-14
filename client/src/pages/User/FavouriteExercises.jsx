@@ -39,7 +39,39 @@ const FavouriteExercises = () => {
               <div className='flex justify-center items-center flex-col bg-white gap-5 rounded-sm pb-2 border-2' key={i}>
               <Link to={exercise.id ? `/exercise/${exercise.id}` : "" } key={i} className='no-underline rounded-xl'>
               <div className="overflow-hidden bg-white rounded-lg">
-                  <img src={exercise.gifUrl} className='w-[70%] mx-auto hover:scale-110 transition' alt={exercise.name} loading="lazy" />
+                  {(() => {
+                    let imageUrl = exercise.gifUrl || 
+                                  exercise.gif_url || 
+                                  exercise.image || 
+                                  exercise.imageUrl ||
+                                  exercise.image_url ||
+                                  exercise.images?.gif ||
+                                  exercise.images?.url ||
+                                  exercise.images?.image ||
+                                  (Array.isArray(exercise.images) && exercise.images[0]) ||
+                                  exercise.media?.[0]?.url ||
+                                  exercise.thumbnail ||
+                                  exercise.photo ||
+                                  '';
+                    
+                    // Filter out placeholder values
+                    if (imageUrl && (imageUrl === 'image_coming_soon' || 
+                                     imageUrl === 'coming_soon' || 
+                                     imageUrl === 'placeholder' ||
+                                     !imageUrl.startsWith('http'))) {
+                      imageUrl = '';
+                    }
+                    
+                    return imageUrl ? (
+                      <img src={imageUrl} className='w-[70%] mx-auto hover:scale-110 transition' alt={exercise.name || exercise.title} loading="lazy" onError={(e) => {
+                        e.target.style.display = 'none';
+                      }} />
+                    ) : (
+                      <div className='w-[70%] mx-auto h-48 bg-gray-200 flex items-center justify-center text-gray-500 text-sm'>
+                        No Image
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-1 flex-row items-center my-8 justify-center">
                       <button className='rounded-lg px-2 py-1 sm:px-3 sm:py-2 text-white bg-[#240b36] hover:opacity-90 transition-all'>{exercise?.bodyPart?.slice(0, 15)}</button>
                       <button className='rounded-lg px-2 py-1 sm:px-3 sm:py-2 text-white bg-[#c31432] hover:opacity-90 transition-all'>{exercise?.target?.slice(0, 15)}</button>

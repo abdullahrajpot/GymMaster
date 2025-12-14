@@ -17,19 +17,28 @@ const BodyPart = ({bodyParts, setBodyPart, bodyPart, setExercises }) => {
         if(bodyPart === "all"){
           // Get all exercises - start with a basic request
           if (IS_NEW_API) {
-            // Try with minimal parameters first
-            exercisesData = await fetchData(`${EXERCISE_API_BASE_URL}/v1/exercises/search?limit=50&offset=0&bodyPart=Legs`, exerciseOptions);
+            // Gym-Fit API: Get exercises from multiple body parts
+            const bodyPartsToFetch = ['Legs', 'Chest', 'Back', 'Arms', 'Shoulders', 'Core'];
+            const allExercisesPromises = bodyPartsToFetch.map(bp => 
+              fetchData(`${EXERCISE_API_BASE_URL}/v1/exercises/search?limit=20&offset=0&bodyPart=${encodeUrlParam(bp)}`, exerciseOptions)
+            );
             
-            // If that works, try to get more variety by making multiple requests
-            if (Array.isArray(exercisesData) && exercisesData.length > 0) {
-              const chestData = await fetchData(`${EXERCISE_API_BASE_URL}/v1/exercises/search?limit=20&offset=0&bodyPart=Chest`, exerciseOptions);
-              const backData = await fetchData(`${EXERCISE_API_BASE_URL}/v1/exercises/search?limit=20&offset=0&bodyPart=Back`, exerciseOptions);
-              
-              if (Array.isArray(chestData)) exercisesData = [...exercisesData, ...chestData];
-              if (Array.isArray(backData)) exercisesData = [...exercisesData, ...backData];
-            }
+            const results = await Promise.all(allExercisesPromises);
+            exercisesData = results.flat().filter(ex => ex); // Flatten and remove nulls
+            
+            // Remove duplicates based on exercise ID or name
+            const uniqueExercises = [];
+            const seen = new Set();
+            exercisesData.forEach(ex => {
+              const key = ex.id || ex.name || ex.title;
+              if (key && !seen.has(key)) {
+                seen.add(key);
+                uniqueExercises.push(ex);
+              }
+            });
+            exercisesData = uniqueExercises;
           } else {
-            exercisesData = await fetchData(`${EXERCISE_API_BASE_URL}/exercises?limit=1000`, exerciseOptions);
+            exercisesData = await fetchData(`${EXERCISE_API_BASE_URL}/exercises`, exerciseOptions);
           }
         } else {
           // Format body part name for API
